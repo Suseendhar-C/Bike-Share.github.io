@@ -1,0 +1,262 @@
+---
+title: "Modeling and prediction for movies"
+output: 
+  html_document: 
+    fig_height: 4
+    highlight: pygments
+    theme: spacelab
+---
+
+## Setup
+
+### Load packages
+
+```{r load-packages, message = FALSE}
+library(ggplot2)
+library(dplyr)
+library(statsr)
+library(GGally)
+library(knitr)
+library(gridExtra)
+
+```
+
+### Load data
+
+Make sure your data and R Markdown files are in the same directory. When loaded
+your data file will be called `movies`. Delete this note when before you submit 
+your work. 
+
+```{r load-data}
+load("D:/Statistics with R/Data Analysis Project/Course 3/movies.Rdata")
+movies <- na.omit(movies) # Remove the NA values from the dataset
+```
+
+
+
+* * *
+
+## Part 1: Data
+
+The dataset consists of movie information from Rotten Tomatoes and IMBD.The data set is comprised of 651 randomly sampled movies produced and released before 2016.We have 32 variables recorded for each movie.It is possible to do an observational study with this dataset, which can be generalized to movies produced and released before 2016.
+
+
+
+* * *
+
+## Part 2: Research question
+
+As a data scientist for the Paramount Pictures, I am interested in learning what attributes make a movie popular and also the relationship between genre, ratings and critic scores for a movie? Do the ratings of critics and audience coincide?
+
+
+* * *
+
+## Part 3: Exploratory data analysis
+
+Let's do EDA on the variables we want to consider.
+
+```{r}
+str(movies %>%
+      select(genre,imdb_rating,critics_score,audience_score))
+```
+
+```{r}
+summary(movies %>%
+          select(genre,imdb_rating,critics_score,audience_score))
+```
+
+From the above data summary we can see that among all the genre’s the most common one is Drama with 305 movies out of 651 being of this genre. Comedy comes in second with 87 movies,which is much lower in number than that of Drama. The summary tells us that the average score is generally between 55% to 65%. But the lowest IMDB ratings and audience scores is around the 10% mark of the scoring system, the critic scores indicate a low rating of around 1% of the scoring system. This is a clear indication of critics scores being different from audience views. While the highest scores still range between 90% - 100% .
+
+Now lets create a visualization between genres and the relevent scores and ratings. First lets see the Critic’s scores:
+
+```{r}
+ ggplot(data = movies, aes(x = genre, y = critics_score, fill = "genre"))+
+   theme(axis.text.x = element_text(angle = 90)) +
+   geom_boxplot(fill="cyan")+ 
+   labs(title="Box Plot",
+       x="Genre",
+       y="Critic's Score")
+```
+
+From this plot we can see the co-relation between the Critic’s scores and the Genre of the movies. This shows that the genre with the highest number of scores are Documentaries and Musical and Performing arts. The rest of the genre shows an evenly distributed number of scores, with most scores evenly distributed between the lowest and the highest.
+
+In the case of the IMDB scores:
+
+```{r}
+ ggplot(data = movies, aes(x = genre, y = imdb_rating, fill = "genre"))+
+  theme(axis.text.x = element_text(angle = 90)) + 
+  geom_boxplot(fill="sky blue") + 
+  labs(title="Box Plot",
+        x="Genre",
+        y="IMDB ratings")
+```
+
+From this plot we can see that most of the genres except Science fiction & Fantasy shows a similar trend. All of these show a higher number of above average scores, with the remaining scores being distributed evenly in the lower 50% of the scoring system. This aligns with the scoring seen among the Critic’s scores.
+
+Finally we will look at the audience scores:
+
+```{r}
+ggplot(data = movies, aes(x = genre, y = audience_score, fill = "genre"))+
+  theme(axis.text.x = element_text(angle = 90)) + 
+  geom_boxplot(fill="violet") + 
+   labs(title="Box Plot",
+        x="Genre",
+        y="Audience Scores")
+```
+ 
+ Documentaries and Musical and Performing arts shows a similar trend as the other two plots. But the other genres are different when compared to other plots.
+ 
+Now let's see the co-relation between these,
+
+```{r}
+# The co-relation between IMDB ratings and Critic's scores
+movies %>%
+  summarise(cor(imdb_rating,critics_score))
+```
+```{r}
+#Co-relation between IMDB rating and audience scores
+movies %>%
+  summarise(cor(imdb_rating,audience_score))
+```
+```{r}
+#Co-relation between Critic's scores and audience scores
+movies %>%
+  summarise(cor(critics_score,audience_score))
+```
+Now we will also plot a co-relation chart divided by genre,
+
+```{r}
+ggpairs(movies , columns = c(3,13,16,18))
+```
+
+We can see a strong correlation between the scores and ratings. This suggests that the audience on Rotten tomatoes as well as IMDB generally agree with the Critic scores.
+
+Now let's plot a histogram of these distribution:
+
+```{r}
+ plot1 <- ggplot(data=movies, aes(x=critics_score)) + 
+   geom_histogram(binwidth=1, fill="light blue") +
+   xlab("Critic's scores")
+ plot2 <- ggplot(data=movies, aes(x=imdb_rating)) + 
+   geom_histogram(binwidth=0.5, fill="cyan") +
+   xlab("IMDB ratings")
+ plot3 <- ggplot(data=movies, aes(x=audience_score)) + 
+   geom_histogram(binwidth=1, fill="red") +
+   xlab("Audience Scores")
+ grid.arrange(plot1, plot2, plot3,
+              top="Distribution of Rating Scores")
+```
+
+We can see that the IMDB ratings show a nearly normal distribution, while both the Rotten Tomatoes audience scores and the Critic’s scores show a left-skewed distribution. Hence IMDB ratings might be the best target response variable to use for the prediction model.
+
+* * *
+
+## Part 4: Modeling
+
+Now we will do modeling for the target response variable, which in our case is the movie ratings in terms of scores given.From the previous plot we see a clear normal distribution in the IMDB rating, and the fact that it has a high correlation factor with both of the other rating systems, we will use IMDB ratings as the target response variable.
+
+In this model, we will use the backward elimination mode i.e. start with all of the variables which can affect the ratings and remove certain variables to create a parsimonious model.
+
+The initial variables will be: 1. Genre (genre) 2. Movie run time in minutes (runtime) 3. MPAA rating of movie (mpaa_rating) 4. Whether or not the movie won a best picture Oscar(best_pic_win) 5. Have any of the main actors ever won an Oscar (best_actor_win) 6. Have any of the main actresses ever won an Oscar (best_actress_win) 7. Has the director ever won an Oscar (best_dir_win) 8. Critics score on Rotten Tomatoes(critics_score) 9.Audience score on Rotten Tomatoes(audience_score)
+
+```{r}
+ initial_model <-lm(imdb_rating ~ genre+runtime+mpaa_rating+
+                      best_pic_win+best_actor_win+best_actress_win+
+                      best_dir_win+critics_score+audience_score,
+                      data=movies)
+ summary(initial_model)
+```
+Now lets perform backward elimination method:
+
+```{r}
+final_model <- step(initial_model, direction = "backward",trace = FALSE)
+summary(final_model)
+```
+The model now has 4 variables Genre, Run time, Critic Score, and the Audience Score. The model also has a slightly larger adjusted r-squared value of 0.8103, hence obtaining almost the same variability with fewer variables from the dataset.
+
+Now lets generate ANOVA for the final model:
+
+```{r}
+anova(final_model)
+```
+We can see from the above tables that the variables in the final model are all statistically significant, hence we will reject the null hypothesis in favor of the alternative hypothesis that the coefficient of at least one of the variables is not 0. From the summary of final model we can see that only 3 out of the 10 genres show statistical significance (p-value less than 0.05).Of these genres, Documentaries and Mystery and Suspense have the highest coefficients of all the genres. The remaining significant variables are similar to genre, all have a positive effect on movies ratings.
+
+Now lets have a look at histogram of the residual plots for the variables:
+
+```{r}
+hist(final_model$residuals,ylab="Residuals",
+      main="Histogram of the residuals")
+```
+
+The histogram is left-skewed.
+
+Now lets have a look at the Normal probability plot of the residuals:
+
+```{r}
+qqnorm(final_model$residuals,
+        main="Normal probability plot of the residuals")
+qqline(final_model$residuals)
+```
+
+This plot shows that the skewness is towards the tail.
+
+Now lets look at the residuals vs fitted values plot to check the non-linearity, outliers, variances and any unequal errors:
+
+```{r}
+ggplot(data = final_model, aes(x = .fitted, y = .resid)) +
+  geom_point() +
+  geom_hline(yintercept = 0, linetype = "dashed")
+```
+
+From the plot we can see that the variance of the residual is constant. But there are outliers, mostly towards the lower left portion of the plot.
+
+
+
+* * *
+
+## Part 5: Prediction
+
+Now lets test the model to get a prediction for the IMDB rating score for the film, “The Five Heartbeats” staring Michael Wright, Tico Wells and Leon. All variables obtained from IMDB and Rotten Tomatoes.
+
+```{r}
+movie_2016 <- data.frame(genre = "Musical & Performing Arts",
+                         runtime = 121, mpaa_rating = "R",
+                         best_dir_win = "no" ,critics_score = 38,
+                         audience_score = 95)
+predict(final_model,movie_2016)
+```
+The predicted rating is 7.43, while the actual rating is 7.5 which is nearly close.
+
+The prediction interval for this movie is:
+
+```{r}
+predict(final_model,movie_2016, interval = "predict")
+```
+So the predicted rating score could range from 6.47 to 8.4, which is inclusive of the actual IMDB rating of 7.43 .
+
+Lets look at another movie. “Alice in Wonderland” is a Action and Adventure film starring Johnny Depp and Anne Hathaway. Again, all the variables have been taken from IMDB and Rotten Tomatoes.
+
+```{r}
+movie_2016 <- data.frame(genre = "Action & Adventure",
+                         runtime = 108, mpaa_rating = "PG",
+                         best_dir_win = "No" ,critics_score = 52,
+                         audience_score = 55)
+predict(final_model,movie_2016)
+```
+From the model, the predicted IMDB rating score is 6.15, while the actual is 6.5, a discrepancy of about 0.35 points.
+
+Now lets look at the prediction interval:
+
+```{r}
+predict(final_model,movie_2016, interval = "predict")
+```
+This interval shows that the predictions could range from 5.22 to 7.08, a range of almost 1.84 points on the rating system. The actual IMDB rating falls within this interval.
+
+The upper and lower values in each predicted interval indicate the 95% Confidence interval (CI). In both cases the predicted and actual value fall within the 95% CI. Hence we can be 95% confident in the accuracy of the predicted IMDB rating.
+
+
+* * *
+
+## Part 6: Conclusion
+
+From the data we can conclude that the genre of a movie greatly effects the expectations of the movie and hence the Critic’s and Audience scores and ratings as well. Also Critic’s scores and Audience scores generally do seem to coincide with up to about a 10% difference. This difference may be due to personal preference or the way in which Critics analyze the movie  compared to common audiences. The generation of the various models in this project provided the tools to come up with a prediction model for the popularity of a movie to some extent. This prediction used IMDB rating scores as the target variable.  As seen above, there are discrepancies between the predicted and actual IMDB scores of the 2 movies tested. In order to improve the prediction capability of the models, several steps can be taken: 1. Movies can be stratified by genre and the IMDB ratings, Critic’s scores and audience scores for each genre can be accurately analyzed to obtain the true statistical variability in each genre. Separate models for each genre can also be created and used in combination with a more general model to obtain more accurate predicted rating scores. 2. A larger dataset can be used to improve on variability of data.
